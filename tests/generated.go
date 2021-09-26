@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"path/filepath"
 	"time"
 
 	. "github.com/beyondstorage/go-storage/v4/pairs"
@@ -163,14 +164,8 @@ type pairServiceNew struct {
 	HasCredential bool
 	Credential    string
 	// Optional pairs
-	HasDefaultContentType  bool
-	DefaultContentType     string
-	HasDefaultIoCallback   bool
-	DefaultIoCallback      func([]byte)
 	HasDefaultServicePairs bool
 	DefaultServicePairs    DefaultServicePairs
-	HasDefaultStorageClass bool
-	DefaultStorageClass    string
 	HasEndpoint            bool
 	Endpoint               string
 	HasHTTPClientOptions   bool
@@ -193,30 +188,12 @@ func parsePairServiceNew(opts []Pair) (pairServiceNew, error) {
 			}
 			result.HasCredential = true
 			result.Credential = v.Value.(string)
-		case "default_content_type":
-			if result.HasDefaultContentType {
-				continue
-			}
-			result.HasDefaultContentType = true
-			result.DefaultContentType = v.Value.(string)
-		case "default_io_callback":
-			if result.HasDefaultIoCallback {
-				continue
-			}
-			result.HasDefaultIoCallback = true
-			result.DefaultIoCallback = v.Value.(func([]byte))
 		case "default_service_pairs":
 			if result.HasDefaultServicePairs {
 				continue
 			}
 			result.HasDefaultServicePairs = true
 			result.DefaultServicePairs = v.Value.(DefaultServicePairs)
-		case "default_storage_class":
-			if result.HasDefaultStorageClass {
-				continue
-			}
-			result.HasDefaultStorageClass = true
-			result.DefaultStorageClass = v.Value.(string)
 		case "endpoint":
 			if result.HasEndpoint {
 				continue
@@ -238,6 +215,8 @@ func parsePairServiceNew(opts []Pair) (pairServiceNew, error) {
 		}
 	}
 	// Enable features
+
+	// Default pairs
 
 	if !result.HasCredential {
 		return pairServiceNew{}, services.PairRequiredError{Keys: []string{"credential"}}
@@ -585,7 +564,15 @@ func parsePairStorageNew(opts []Pair) (pairStorageNew, error) {
 		}
 	}
 	// Enable features
-
+	if result.hasEnableLoosePair {
+		result.HasStorageFeatures = true
+		result.StorageFeatures.LoosePair = true
+	}
+	if result.hasEnableVirtualDir {
+		result.HasStorageFeatures = true
+		result.StorageFeatures.VirtualDir = true
+	}
+	// Default pairs
 	if result.HasDefaultContentType {
 		result.HasDefaultStoragePairs = true
 		result.DefaultStoragePairs.Write = append(result.DefaultStoragePairs.Write, WithContentType(result.DefaultContentType))
@@ -1242,7 +1229,7 @@ func (s *Storage) CopyWithContext(ctx context.Context, src string, dst string, p
 	if err != nil {
 		return
 	}
-	return s.copy(ctx, src, dst, opt)
+	return s.copy(ctx, filepath.ToSlash(src), filepath.ToSlash(dst), opt)
 }
 func (s *Storage) Create(path string, pairs ...Pair) (o *Object) {
 	pairs = append(pairs, s.defaultPairs.Create...)
@@ -1269,7 +1256,7 @@ func (s *Storage) CreateAppendWithContext(ctx context.Context, path string, pair
 	if err != nil {
 		return
 	}
-	return s.createAppend(ctx, path, opt)
+	return s.createAppend(ctx, filepath.ToSlash(path), opt)
 }
 func (s *Storage) CreateMultipart(path string, pairs ...Pair) (o *Object, err error) {
 	ctx := context.Background()
@@ -1288,7 +1275,7 @@ func (s *Storage) CreateMultipartWithContext(ctx context.Context, path string, p
 	if err != nil {
 		return
 	}
-	return s.createMultipart(ctx, path, opt)
+	return s.createMultipart(ctx, filepath.ToSlash(path), opt)
 }
 func (s *Storage) Delete(path string, pairs ...Pair) (err error) {
 	ctx := context.Background()
@@ -1307,7 +1294,7 @@ func (s *Storage) DeleteWithContext(ctx context.Context, path string, pairs ...P
 	if err != nil {
 		return
 	}
-	return s.delete(ctx, path, opt)
+	return s.delete(ctx, filepath.ToSlash(path), opt)
 }
 func (s *Storage) Fetch(path string, url string, pairs ...Pair) (err error) {
 	ctx := context.Background()
@@ -1326,7 +1313,7 @@ func (s *Storage) FetchWithContext(ctx context.Context, path string, url string,
 	if err != nil {
 		return
 	}
-	return s.fetch(ctx, path, url, opt)
+	return s.fetch(ctx, filepath.ToSlash(path), url, opt)
 }
 func (s *Storage) List(path string, pairs ...Pair) (oi *ObjectIterator, err error) {
 	ctx := context.Background()
@@ -1345,7 +1332,7 @@ func (s *Storage) ListWithContext(ctx context.Context, path string, pairs ...Pai
 	if err != nil {
 		return
 	}
-	return s.list(ctx, path, opt)
+	return s.list(ctx, filepath.ToSlash(path), opt)
 }
 func (s *Storage) ListMultipart(o *Object, pairs ...Pair) (pi *PartIterator, err error) {
 	ctx := context.Background()
@@ -1394,7 +1381,7 @@ func (s *Storage) MoveWithContext(ctx context.Context, src string, dst string, p
 	if err != nil {
 		return
 	}
-	return s.move(ctx, src, dst, opt)
+	return s.move(ctx, filepath.ToSlash(src), filepath.ToSlash(dst), opt)
 }
 func (s *Storage) Reach(path string, pairs ...Pair) (url string, err error) {
 	ctx := context.Background()
@@ -1413,7 +1400,7 @@ func (s *Storage) ReachWithContext(ctx context.Context, path string, pairs ...Pa
 	if err != nil {
 		return
 	}
-	return s.reach(ctx, path, opt)
+	return s.reach(ctx, filepath.ToSlash(path), opt)
 }
 func (s *Storage) Read(path string, w io.Writer, pairs ...Pair) (n int64, err error) {
 	ctx := context.Background()
@@ -1432,7 +1419,7 @@ func (s *Storage) ReadWithContext(ctx context.Context, path string, w io.Writer,
 	if err != nil {
 		return
 	}
-	return s.read(ctx, path, w, opt)
+	return s.read(ctx, filepath.ToSlash(path), w, opt)
 }
 func (s *Storage) Stat(path string, pairs ...Pair) (o *Object, err error) {
 	ctx := context.Background()
@@ -1451,7 +1438,7 @@ func (s *Storage) StatWithContext(ctx context.Context, path string, pairs ...Pai
 	if err != nil {
 		return
 	}
-	return s.stat(ctx, path, opt)
+	return s.stat(ctx, filepath.ToSlash(path), opt)
 }
 func (s *Storage) Write(path string, r io.Reader, size int64, pairs ...Pair) (n int64, err error) {
 	ctx := context.Background()
@@ -1470,7 +1457,7 @@ func (s *Storage) WriteWithContext(ctx context.Context, path string, r io.Reader
 	if err != nil {
 		return
 	}
-	return s.write(ctx, path, r, size, opt)
+	return s.write(ctx, filepath.ToSlash(path), r, size, opt)
 }
 func (s *Storage) WriteAppend(o *Object, r io.Reader, size int64, pairs ...Pair) (n int64, err error) {
 	ctx := context.Background()
